@@ -1,1 +1,55 @@
-# .github-workflows-test.yaml
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+name: Tests
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: test and coverage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal access token.
+          fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
+
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.21.0"
+
+      - name: Run Test
+        run: |
+          go test ./... -covermode=count -coverprofile=coverage.out
+          go tool cover -func=coverage.out -o=coverage.out
+
+  integration-tests:
+    name: integration tests
+    # Run on older Ubuntu version because of older LibSSL dependency.
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal access token.
+          fetch-depth: 0 # otherwise, there would be errors pushing refs to the destination repository.
+      
+      - name: Set up Go 1.21.0
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.21.0"
+
+      - name: Install Bless Runtime
+        run: |
+          mkdir -p /tmp/bls-runtime
+          curl -L -o runtime.tar.gz https://github.com/blessnetwork/bls-runtime/releases/download/v0.3.1/blockless-runtime.ubuntu-20.04.x86_64.tar.gz
+          tar xzf runtime.tar.gz -C /tmp/bls-runtime
+          rm runtime.tar.gz
+      
+      - name: Run integration tests
+        run: |
+          export B7S_INTEG_RUNTIME_DIR=/tmp/bls-runtime
+          go test --tags=integration ./...
